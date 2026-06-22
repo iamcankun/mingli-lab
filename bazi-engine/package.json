@@ -1,0 +1,8 @@
+{
+  "name": "mingli-lab-bazi-engine",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bazi-mcp": "0.1.0"
+  }
+}
