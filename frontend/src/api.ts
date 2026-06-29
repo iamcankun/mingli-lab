@@ -31,6 +31,24 @@ export type ChartData = {
   dayun?: Record<string, unknown>;
 };
 
+export type LifeKlineDay = {
+  date: string;
+  ganzhi: { year: string; month: string; day: string };
+  kline: { open: number; high: number; low: number; close: number };
+  trend: "bullish" | "bearish" | "neutral";
+  level: "high" | "medium" | "low";
+  tags: string[];
+  explanation: string;
+  evidence: Array<{ rule: string; label: string; delta: number; polarity: "positive" | "negative" | "neutral" }>;
+};
+
+export type LifeKlineResponse = {
+  chart_id: number;
+  range: { start: string; end: string; days: number };
+  method: { version: string; score_range: [number, number]; dimension: string };
+  series: LifeKlineDay[];
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -53,6 +71,14 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteChart: (id: number) => request<void>(`/api/charts/${id}`, { method: "DELETE" }),
+  getLifeKline: (id: number, params: { start?: string; end?: string; dimension?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.start) query.set("start", params.start);
+    if (params.end) query.set("end", params.end);
+    if (params.dimension) query.set("dimension", params.dimension);
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<LifeKlineResponse>(`/api/charts/${id}/life-kline${suffix}`);
+  },
   getModel: () => request<ModelSettings>("/api/settings/model"),
   saveModel: (payload: ModelSettings & { api_key: string }) =>
     request<ModelSettings>("/api/settings/model", {
@@ -80,4 +106,3 @@ export type InferenceResult = {
   user_prompt: string;
   token_usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 };
-

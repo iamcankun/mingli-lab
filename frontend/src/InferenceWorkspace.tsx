@@ -29,7 +29,7 @@ export function InferenceWorkspace({ charts }: { charts: ChartRecord[] }) {
       <section className="panel inference-chart">
         <div className="section-heading"><div><h2>命盘</h2><p>本次推理固定对象</p></div></div>
         <label>选择记录<select value={chartId} onChange={(e)=>setChartId(Number(e.target.value))}><option value={0}>临时八字</option>{charts.map((chart)=><option value={chart.id} key={chart.id}>{chart.name} · {chart.bazi}</option>)}</select></label>
-        {!selected ? <label>临时八字<textarea value={temporaryBazi} onChange={(e)=>setTemporaryBazi(e.target.value)} placeholder="甲戌 丁丑 乙卯 甲申" required/></label> : <ChartDetail chart={selected.chart}/>}
+        {!selected ? <label>临时八字<textarea value={temporaryBazi} onChange={(e)=>setTemporaryBazi(e.target.value)} placeholder="甲戌 丁丑 乙卯 甲申" required/></label> : <ChartDetail chart={selected.chart} chartId={selected.id}/>}
       </section>
       <section className="panel inference-config">
         <div className="section-heading"><div><h2>推理配置</h2><p>自由组合分析任务</p></div></div>
@@ -49,4 +49,3 @@ export function InferenceWorkspace({ charts }: { charts: ChartRecord[] }) {
     </form>
   );
 }
-

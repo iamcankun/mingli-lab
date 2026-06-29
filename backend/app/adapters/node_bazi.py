@@ -15,6 +15,26 @@ class NodeBaziAdapter:
         self.timeout = timeout
 
     def calculate(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        payload = self._run(arguments)
+        if not payload.get("success") or not isinstance(payload.get("data"), dict):
+            raise BaziEngineError(payload.get("error") or "Bazi engine failed")
+        return payload["data"]
+
+    def calculate_batch(self, arguments_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        payload = self._run({"mode": "batch", "items": arguments_list})
+        data = payload.get("data")
+        if not payload.get("success") or not isinstance(data, list):
+            raise BaziEngineError(payload.get("error") or "Bazi engine batch failed")
+        if len(data) != len(arguments_list):
+            raise BaziEngineError("Bazi engine batch returned unexpected item count")
+        charts = []
+        for item in data:
+            if not isinstance(item, dict) or not isinstance(item.get("chart"), dict):
+                raise BaziEngineError("Bazi engine batch returned invalid item")
+            charts.append(item["chart"])
+        return charts
+
+    def _run(self, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
             completed = subprocess.run(
                 [os.getenv("NODE_BINARY", "node"), str(self.script_path)],
@@ -33,7 +53,4 @@ class NodeBaziAdapter:
             payload = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise BaziEngineError("Bazi engine returned invalid JSON") from exc
-        if not payload.get("success") or not isinstance(payload.get("data"), dict):
-            raise BaziEngineError(payload.get("error") or "Bazi engine failed")
-        return payload["data"]
-
+        return payload

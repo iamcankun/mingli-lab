@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
@@ -7,12 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from .adapters.node_bazi import BaziEngineError, NodeBaziAdapter
 from .adapters.openai_compatible import ModelAdapterError, OpenAICompatibleAdapter
 from .database import Database
-from .models import ChartCalculateRequest, InferenceRequest, ModelSettingsRequest
+from .models import ChartCalculateRequest, InferenceRequest, LifeKlineQuery, ModelSettingsRequest
 from .prompts import PROMPTS
 from .repositories import ChartRepository, InferenceRepository, ModelSettingsRepository
 from .security import SecretCipher
 from .services.bazi import build_engine_arguments, normalize_chart
 from .services.inference import PromptRenderError, render_prompt
+from .services.life_kline import build_life_kline
 
 
 def create_app(data_dir: Path | None = None, bazi_adapter=None, model_adapter=None) -> FastAPI:
@@ -72,6 +74,32 @@ def create_app(data_dir: Path | None = None, bazi_adapter=None, model_adapter=No
         if not item:
             raise HTTPException(404, "Chart not found")
         return item
+
+    @app.get("/api/charts/{chart_id}/life-kline")
+    def get_life_kline(chart_id: int, start: date | None = None, end: date | None = None, dimension: str = "overall"):
+        item = app.state.charts.get(chart_id)
+        if not item:
+            raise HTTPException(404, "Chart not found")
+        if dimension != "overall":
+            raise HTTPException(400, detail={"code": "LIFE_KLINE_INVALID_DIMENSION"})
+        today = date.today()
+        query = LifeKlineQuery(start=start or today, end=end or today + timedelta(days=1095), dimension=dimension)
+        if query.end < query.start:
+            raise HTTPException(400, detail={"code": "LIFE_KLINE_INVALID_RANGE"})
+        try:
+            payload = build_life_kline(
+                item["chart"],
+                item["gender"],
+                app.state.bazi_adapter,
+                query.start,
+                query.end,
+                query.dimension,
+            )
+        except ValueError as exc:
+            raise HTTPException(400, detail={"code": "LIFE_KLINE_INVALID_RANGE", "message": str(exc)})
+        except BaziEngineError as exc:
+            raise HTTPException(503, detail={"code": "BAZI_ENGINE_UNAVAILABLE", "message": str(exc)})
+        return {"chart_id": chart_id, **payload}
 
     @app.delete("/api/charts/{chart_id}", status_code=204)
     def delete_chart(chart_id: int):

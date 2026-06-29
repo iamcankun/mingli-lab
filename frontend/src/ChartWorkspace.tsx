@@ -77,7 +77,7 @@ export function ChartWorkspace({ onChartsChange }: { onChartsChange: (items: Cha
       </section>
       <section className="panel chart-canvas">
         <div className="section-heading"><div><h2>{selected?.name || "命盘详情"}</h2><p>{selected ? `${selected.birth_place || "出生地未记录"} · 创建于 ${selected.created_at.slice(0, 10)}` : "结构化排盘事实"}</p></div></div>
-        <ChartDetail chart={selected?.chart}/>
+        <ChartDetail chart={selected?.chart} chartId={selected?.id}/>
       </section>
     </div>
   );

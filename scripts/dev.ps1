@@ -7,5 +7,4 @@ Start-Process -FilePath "python" `
   -WindowStyle Hidden
 
 Set-Location (Join-Path $Root "frontend")
-npm run dev
-
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort

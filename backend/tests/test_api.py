@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.adapters.node_bazi import BaziEngineError
 from app.main import create_app
 
 
@@ -18,9 +19,30 @@ RAW_CHART = {
 
 
 class FakeBaziAdapter:
+    fail_batch = False
+
     def calculate(self, arguments):
         assert arguments["eightCharProviderSect"] == 1
         return RAW_CHART
+
+    def calculate_batch(self, arguments):
+        if self.fail_batch:
+            raise BaziEngineError("batch failed")
+        return [
+            {
+                "年柱": {"天干": {"天干": "丙", "十神": "七杀"}, "地支": {"地支": "午", "藏干": {}}},
+                "月柱": {"天干": {"天干": "甲", "十神": "偏财"}, "地支": {"地支": "午", "藏干": {}}},
+                "日柱": {
+                    "天干": {"天干": "乙", "十神": "正财"},
+                    "地支": {"地支": "亥", "藏干": {"主气": {"天干": "壬", "十神": "食神"}}},
+                },
+            }
+            for _ in arguments
+        ]
+
+
+class FailingBatchBaziAdapter(FakeBaziAdapter):
+    fail_batch = True
 
 
 class FakeModelAdapter:
@@ -45,9 +67,8 @@ def make_client(data_dir):
     )
 
 
-def test_chart_calculate_search_detail_and_delete(data_dir):
-    client = make_client(data_dir)
-    created = client.post(
+def create_chart(client):
+    response = client.post(
         "/api/charts/calculate",
         json={
             "name": "林默",
@@ -59,13 +80,77 @@ def test_chart_calculate_search_detail_and_delete(data_dir):
             "persist": True,
         },
     )
-    assert created.status_code == 200
-    payload = created.json()
-    assert payload["record"]["bazi"] == "庚午 辛巳 庚辰 癸未"
-    chart_id = payload["record"]["id"]
+    assert response.status_code == 200
+    return response.json()["record"]
+
+
+def test_chart_calculate_search_detail_and_delete(data_dir):
+    client = make_client(data_dir)
+    record = create_chart(client)
+    assert record["bazi"] == "庚午 辛巳 庚辰 癸未"
+    chart_id = record["id"]
     assert client.get("/api/charts", params={"query": "林"}).json()["items"][0]["id"] == chart_id
     assert client.get(f"/api/charts/{chart_id}").json()["chart"]["day_master"] == "庚"
     assert client.delete(f"/api/charts/{chart_id}").status_code == 204
+
+
+def test_life_kline_endpoint_returns_daily_series(data_dir):
+    client = make_client(data_dir)
+    record = create_chart(client)
+
+    response = client.get(
+        f"/api/charts/{record['id']}/life-kline",
+        params={"start": "2026-06-30", "end": "2026-07-01", "dimension": "overall"},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["range"]["days"] == 2
+    assert result["method"]["version"] == "life-kline-v1"
+    assert result["series"][0]["date"] == "2026-06-30"
+    assert result["series"][0]["ganzhi"]["day"] == "乙亥"
+    assert set(result["series"][0]["kline"]) == {"open", "high", "low", "close"}
+    assert result["series"][0]["evidence"]
+
+
+def test_life_kline_endpoint_validates_range_and_dimension(data_dir):
+    client = make_client(data_dir)
+    record = create_chart(client)
+
+    reversed_range = client.get(
+        f"/api/charts/{record['id']}/life-kline",
+        params={"start": "2026-07-01", "end": "2026-06-30"},
+    )
+    unsupported_dimension = client.get(
+        f"/api/charts/{record['id']}/life-kline",
+        params={"start": "2026-06-30", "end": "2026-07-01", "dimension": "wealth"},
+    )
+
+    assert reversed_range.status_code == 400
+    assert unsupported_dimension.status_code == 400
+
+
+def test_life_kline_endpoint_returns_404_for_missing_chart(data_dir):
+    client = make_client(data_dir)
+
+    response = client.get("/api/charts/999/life-kline", params={"start": "2026-06-30", "end": "2026-07-01"})
+
+    assert response.status_code == 404
+
+
+def test_life_kline_endpoint_maps_engine_errors(data_dir):
+    client = TestClient(
+        create_app(data_dir=data_dir, bazi_adapter=FailingBatchBaziAdapter(), model_adapter=FakeModelAdapter())
+    )
+    record = create_chart(client)
+
+    response = client.get(
+        f"/api/charts/{record['id']}/life-kline",
+        params={"start": "2026-06-30", "end": "2026-07-01"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "BAZI_ENGINE_UNAVAILABLE"
 
 
 def test_model_settings_mask_key_and_test_connection(data_dir):

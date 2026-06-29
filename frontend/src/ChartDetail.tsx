@@ -1,6 +1,7 @@
 import type { ChartData } from "./api";
+import { LifeKlinePanel } from "./LifeKlinePanel";
 
-export function ChartDetail({ chart }: { chart?: ChartData }) {
+export function ChartDetail({ chart, chartId }: { chart?: ChartData; chartId?: number }) {
   if (!chart) return <div className="empty-state">选择一条命盘，或在左侧创建新命盘。</div>;
   return (
     <div className="chart-detail">
@@ -28,9 +29,9 @@ export function ChartDetail({ chart }: { chart?: ChartData }) {
       </div>
       <section className="future-module">
         <div><span>大运</span><b>排盘引擎数据已保留</b></div>
-        <p>流年、流月及旺衰强弱将在后续独立算法模块中接入，当前不生成推测性结果。</p>
+        <p>人生K线图使用规则评分生成日级趋势，点击单日可查看触发证据。</p>
       </section>
+      <LifeKlinePanel chartId={chartId}/>
     </div>
   );
 }
-

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -42,3 +43,41 @@ class InferenceRequest(BaseModel):
         if bool(self.chart_id) == bool(self.temporary_chart):
             raise ValueError("Provide exactly one of chart_id or temporary_chart")
         return self
+
+
+class KlineValue(BaseModel):
+    open: int
+    high: int
+    low: int
+    close: int
+
+
+class KlineEvidence(BaseModel):
+    rule: str
+    label: str
+    delta: int
+    polarity: Literal["positive", "negative", "neutral"]
+
+
+class LifeKlineDay(BaseModel):
+    date: str
+    ganzhi: dict[str, str]
+    kline: KlineValue
+    trend: Literal["bullish", "bearish", "neutral"]
+    level: Literal["high", "medium", "low"]
+    tags: list[str] = Field(default_factory=list)
+    explanation: str
+    evidence: list[KlineEvidence] = Field(default_factory=list)
+
+
+class LifeKlineResponse(BaseModel):
+    chart_id: int
+    range: dict[str, Any]
+    method: dict[str, Any]
+    series: list[LifeKlineDay]
+
+
+class LifeKlineQuery(BaseModel):
+    start: date | None = None
+    end: date | None = None
+    dimension: Literal["overall"] = "overall"

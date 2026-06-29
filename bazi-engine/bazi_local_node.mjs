@@ -14,8 +14,18 @@ function cleanArgs(input) {
 
 try {
   const raw = readFileSync(0, "utf8").trim();
-  const data = await getBaziDetail(cleanArgs(raw ? JSON.parse(raw) : {}));
-  process.stdout.write(JSON.stringify({ success: true, data }));
+  const input = raw ? JSON.parse(raw) : {};
+  if (input?.mode === "batch") {
+    const items = Array.isArray(input.items) ? input.items : [];
+    const data = [];
+    for (const item of items) {
+      data.push({ input: cleanArgs(item), chart: await getBaziDetail(cleanArgs(item)) });
+    }
+    process.stdout.write(JSON.stringify({ success: true, data }));
+  } else {
+    const data = await getBaziDetail(cleanArgs(input));
+    process.stdout.write(JSON.stringify({ success: true, data }));
+  }
 } catch (error) {
   process.stderr.write(
     JSON.stringify({
